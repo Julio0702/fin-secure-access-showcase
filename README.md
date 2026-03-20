@@ -28,6 +28,18 @@ The system was built using an Agile methodology and operates on a strict 3-tier 
 
 ## 📸 System Previews
 
-### Secure User Authentication
+
+### 1. Real-Time Fraud Interception
+![Fraud Alert](fraud-alert.png)
+*The AI engine successfully identifies a high-value anomaly and triggers an immediate block, providing Explainable AI (XAI) feedback to the user.*
+
+### 2. Secure User Dashboard
+![Dashboard](dashboard-screenshot.png)
+*The main interface featuring a live activity feed and user-defined risk controls (Daily Transfer Limits).*
+
+### 3. Multi-Factor Authentication
 ![MFA Login](mfa-login-screenshot.png)
 *Secure login portal enforcing strict access control via TOTP.*
+
+
+
