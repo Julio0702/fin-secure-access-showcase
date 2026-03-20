@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Model Fraud Detection Engine</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/otpauth/9.1.4/otpauth.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+        }
+
+        .feed-item {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body class="p-4 sm:p-8 relative">
+
+    <!-- Loading Overlay -->
+    <div id="loading-spinner" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-100">
+        <div class="animate-spin h-12 w-12 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+        <p class="text-gray-600 mt-4 font-bold">Connecting...</p>
+    </div>
+
+    <!-- Auth Overlay (Login/Register) -->
+    <div id="auth-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-90 z-40 flex items-center justify-center">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full">
+            <h2 class="text-2xl font-black text-center text-gray-800 mb-6">FinSecure Access</h2>
+
+            <!-- Login Form -->
+            <form id="login-form" class="space-y-4">
+                <input type="email" id="login-email" placeholder="Email" class="w-full p-3 border rounded-lg" required>
+                <input type="password" id="login-password" placeholder="Password" class="w-full p-3 border rounded-lg"
+                    required>
+                <button type="submit"
+                    class="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Login</button>
+            </form>
+
+            <!-- Register Form (Hidden) -->
+            <form id="register-form" class="hidden space-y-4">
+                <input type="text" id="reg-name" placeholder="Full Name" class="w-full p-3 border rounded-lg" required>
+                <input type="email" id="reg-email" placeholder="Email" class="w-full p-3 border rounded-lg" required>
+                <input type="password" id="reg-pass" placeholder="Password" class="w-full p-3 border rounded-lg"
+                    required>
+                <div class="bg-blue-50 p-3 rounded-lg">
+                    <label class="text-xs font-bold text-blue-800 uppercase">Set 6-Digit PIN</label>
+                    <input type="text" id="reg-pin" placeholder="123456" maxlength="6" pattern="\d{6}"
+                        class="w-full mt-1 p-2 border rounded text-center tracking-widest font-bold" required>
+                </div>
+                <button type="submit"
+                    class="w-full py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700">Register
+                    Account</button>
+            </form>
+
+            <p class="text-center mt-6 text-sm text-blue-600 cursor-pointer hover:underline" id="toggle-auth">Create an
+                Account</p>
+        </div>
+    </div>
+
+    <!-- MFA Setup Modal -->
+    <div id="mfa-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-90 z-50 flex items-center justify-center">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
+            <h2 class="text-2xl font-black text-gray-800 mb-4">Setup 2FA</h2>
+            <p class="text-xs text-gray-500 mb-4">Scan this QR code with Google Authenticator.</p>
+
+            <div id="qrcode" class="flex justify-center mb-4"></div>
+
+            <p class="text-xs text-gray-400 font-mono mb-4 break-all" id="mfa-secret-display"></p>
+
+            <input type="text" id="mfa-verify-input" placeholder="Enter 6-digit Code" maxlength="6"
+                class="w-full p-3 border rounded-lg text-center tracking-widest font-bold mb-4">
+
+            <div class="flex space-x-2">
+                <button id="cancel-mfa-btn"
+                    class="flex-1 py-2 bg-gray-200 text-gray-700 font-bold rounded-lg">Cancel</button>
+                <button id="confirm-mfa-btn"
+                    class="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700">Activate</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MFA Login Verify Overlay -->
+    <div id="mfa-verify-overlay" class="hidden fixed inset-0 bg-gray-900 z-[60] flex items-center justify-center">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
+            <h2 class="text-2xl font-black text-indigo-600 mb-2">2FA Verification</h2>
+            <p class="text-sm text-gray-600 mb-6">Enter the code from your app.</p>
+
+            <input type="text" id="login-mfa-input" placeholder="000 000" maxlength="6" autocomplete="off"
+                class="w-full p-4 border-2 border-indigo-100 rounded-xl text-center text-2xl tracking-[0.5em] font-black mb-6 focus:border-indigo-500 outline-none">
+
+            <button id="login-verify-btn"
+                class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-lg">Verify
+                Identity</button>
+            <p class="text-xs text-gray-400 mt-4 cursor-pointer hover:text-gray-600" id="back-to-login-btn">Back to
+                Login</p>
+        </div>
+    </div>
+
+    <!-- Limit Modal -->
+    <div id="limit-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-90 z-50 flex items-center justify-center">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Set Daily Limit</h2>
+            <p class="text-sm text-gray-500 mb-4">Transactions above this amount will be blocked automatically.</p>
+            <div class="space-y-4">
+                <input type="number" id="new-limit" placeholder="Enter Amount (e.g. 5000)"
+                    class="w-full p-3 border rounded-lg">
+                <input type="password" id="limit-pin" maxlength="6" placeholder="Confirm with 6-digit PIN"
+                    class="w-full p-3 border rounded-lg text-center tracking-widest">
+                <div class="flex space-x-2">
+                    <button onclick="document.getElementById('limit-modal').classList.add('hidden')"
+                        class="flex-1 py-2 bg-gray-200 text-gray-700 font-bold rounded-lg">Cancel</button>
+                    <button onclick="saveLimit()"
+                        class="flex-1 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Save
+                        Limit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Card Modal -->
+    <div id="add-card-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-90 z-50 flex items-center justify-center">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Add Payment Method</h2>
+            <div class="space-y-4">
+                <input type="text" id="card-number" placeholder="Card Number (4242...)"
+                    class="w-full p-3 border rounded-lg" maxlength="19">
+                <div class="flex space-x-4">
+                    <input type="text" id="card-expiry" placeholder="MM/YY" class="w-1/2 p-3 border rounded-lg"
+                        maxlength="5">
+                    <input type="password" id="card-cvv" placeholder="CVV" class="w-1/2 p-3 border rounded-lg"
+                        maxlength="3">
+                </div>
+                <div class="bg-blue-50 p-3 rounded text-xs text-blue-700">
+                    <p class="font-bold">🔒 Secure Tokenization</p>
+                    <p>Your actual card details will NOT be stored. A secure token will be generated.</p>
+                </div>
+                <div class="flex space-x-2">
+                    <button id="cancel-card-btn"
+                        class="flex-1 py-2 bg-gray-200 text-gray-700 font-bold rounded-lg">Cancel</button>
+                    <button id="save-card-btn"
+                        class="flex-1 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Tokenize &
+                        Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboard-container" class="hidden max-w-6xl mx-auto">
+        <header class="flex items-center justify-between pb-8 border-b border-gray-200">
+            <div>
+                <h1 class="text-2xl font-extrabold text-gray-900">Multi-Model Fraud Detection Engine</h1>
+                <p class="text-xs text-gray-500 font-mono mt-1">User: <span id="display-name"
+                        class="font-bold text-black">...</span></p>
+            </div>
+            <div class="text-right">
+                <button id="manage-cards-btn" class="text-xs text-blue-500 font-bold hover:underline mb-2 mr-4">Manage
+                    Cards</button>
+                <button id="setup-mfa-btn" class="text-xs text-indigo-500 font-bold hover:underline mb-2 mr-4">Setup
+                    2FA</button>
+                <button id="logout-btn" class="text-xs text-red-500 font-bold hover:underline mb-2">Logout</button>
+                <p class="text-sm text-gray-500">Balance: <span id="display-balance"
+                        class="font-bold text-green-600 text-xl">$0.00</span></p>
+                <p id="limit-display" class="text-xs text-blue-500 cursor-pointer hover:underline mt-1"
+                    onclick="openLimitModal()">
+                    Limit: $10,000
+                </p>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+            <div class="lg:col-span-1 space-y-8">
+                <!-- Metrics -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4">Model Performance</h2>
+                    <div class="space-y-2 text-sm text-gray-600">
+                        <p>Precision: <span class="font-bold text-green-600">91%</span></p>
+                        <p>Recall: <span class="font-bold text-yellow-600">75%</span></p>
+                        <p>F1-Score: <span class="font-bold text-blue-600">82%</span></p>
+                    </div>
+                </div>
+
+                <!-- Input Form -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4">Transaction Hub</h2>
+                    <div class="space-y-4">
+
+                        <!-- Type Selector -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Transaction Type</label>
+                            <div class="mt-2 flex space-x-4">
+                                <label class="flex items-center"><input type="radio" name="txType" value="credit_card"
+                                        checked onclick="toggleInputs()" class="mr-2"> Bank Top-Up</label>
+                                <label class="flex items-center"><input type="radio" name="txType" value="p2p_transfer"
+                                        onclick="toggleInputs()" class="mr-2"> P2P Transfer</label>
+                            </div>
+                        </div>
+
+                        <!-- REQ 1: Payment Method Selector (Bank or Token) -->
+                        <div id="bank-input-group">
+                            <label class="block text-sm font-medium text-gray-700">Payment Method</label>
+                            <select id="paymentMethod"
+                                class="mt-1 block w-full px-3 py-2 border rounded-md text-sm bg-white">
+                                <optgroup label="Direct Bank Transfer">
+                                    <option value="Maybank">Maybank</option>
+                                    <option value="CIMB">CIMB Bank</option>
+                                    <option value="Public Bank">Public Bank</option>
+                                    <option value="RHB">RHB Bank</option>
+                                    <option value="Hong Leong">Hong Leong Bank</option>
+                                </optgroup>
+                                <optgroup label="Saved Cards (Tokenized)" id="saved-cards-optgroup">
+                                    <!-- Dynamic Cards Will Go Here -->
+                                </optgroup>
+                            </select>
+                            <!-- REQ 2: Disclaimer -->
+                            <p class="text-xs text-red-500 mt-1 italic font-bold" id="payment-note">Note: This will not
+                                be directed to any real bank</p>
+                        </div>
+
+                        <!-- Recipient ID (Hidden for Top-Up) -->
+                        <div id="recipient-input-group" class="hidden">
+                            <label class="block text-sm font-medium text-gray-700">Recipient Email</label>
+                            <input type="email" id="recipientID" placeholder="user@example.com"
+                                class="mt-1 block w-full px-3 py-2 border rounded-md text-sm">
+                        </div>
+
+                        <!-- Amount -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Amount ($)</label>
+                            <input type="number" id="transactionAmount" placeholder="100.00"
+                                class="mt-1 block w-full px-3 py-2 border rounded-md text-sm">
+                        </div>
+
+                        <!-- REQ 3: Security PIN -->
+                        <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+                            <label class="block text-xs font-bold text-indigo-700">Security PIN</label>
+                            <input type="password" id="userPIN" maxlength="6" autocomplete="new-password"
+                                placeholder="Enter 6-digit PIN"
+                                class="mt-1 block w-full px-3 py-2 border rounded-md text-center tracking-widest font-bold">
+                        </div>
+
+                        <button id="submitBtn" onclick="submitTransaction()"
+                            class="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Process
+                            Transaction</button>
+                    </div>
+                    <div id="alertBox"
+                        class="p-3 mt-4 text-sm rounded-lg border opacity-0 transition-opacity duration-300"></div>
+                </div>
+            </div>
+
+            <!-- Feed -->
+            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">Live Activity Feed</h2>
+                <div id="liveFeed" class="space-y-3 h-[600px] overflow-y-auto"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, query, where, onSnapshot, runTransaction, serverTimestamp, orderBy, limit, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- YOUR FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBdn1qAgUrPlHtvsBBSoAZUGN8jVFfNuck",
+            authDomain: "my-fintech-fyp.firebaseapp.com",
+            projectId: "my-fintech-fyp",
+            storageBucket: "my-fintech-fyp.firebasestorage.app",
+            messagingSenderId: "804305679864",
+            appId: "1:804305679864:web:0a322c16f3304cae09520d",
+            measurementId: "G-Z6X8XYC5SG"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const API_URL = 'http://127.0.0.1:5000/predict';
+        let userData = null;
+
+        // --- UI Handling ---
+        const overlay = document.getElementById('auth-overlay');
+        const loginForm = document.getElementById('login-form');
+        const regForm = document.getElementById('register-form');
+        const toggleBtn = document.getElementById('toggle-auth');
+        const spinner = document.getElementById('loading-spinner');
+
+        // --- Security Features: Idle Timeout (1 Minute) ---
+        let idleTimer;
+        function resetIdleTimer() {
+            clearTimeout(idleTimer);
+            if (!auth.currentUser) return; // Only if logged in
+            idleTimer = setTimeout(() => {
+                // Hide immediately for security
+                document.getElementById('dashboard-container').classList.add('hidden');
+                document.getElementById('auth-overlay').classList.remove('hidden');
+
+                // Clear MFA State
+                sessionStorage.removeItem('mfaVerified');
+                document.getElementById('login-mfa-input').value = '';
+
+                alert("Session Expired due to inactivity.");
+                auth.signOut();
+            }, 60000); // 60 seconds
+        }
+        window.onload = resetIdleTimer;
+        document.onmousemove = resetIdleTimer;
+        document.onkeypress = resetIdleTimer;
+
+        // Toggle Auth Forms
+        toggleBtn.onclick = () => {
+            loginForm.classList.toggle('hidden');
+            regForm.classList.toggle('hidden');
+            toggleBtn.textContent = loginForm.classList.contains('hidden') ? "Back to Login" : "Create an Account";
+        };
+
+        let unsubBalance = null;
+        let unsubTransactions = null;
+
+        // --- Auth Logic ---
+        onAuthStateChanged(auth, async (user) => {
+            console.log("Auth State Changed:", user ? "User Logged In (" + user.uid + ")" : "User Logged Out");
+            const dashboard = document.getElementById('dashboard-container');
+            if (!dashboard) return console.error("Dashboard container not found!");
+
+            try {
+                if (user) {
+                    console.log("Fetching user data for:", user.uid);
+                    const snap = await getDoc(doc(db, "users", user.uid));
+                    console.log("User Snapshot Exists:", snap.exists());
+
+                    if (snap.exists()) {
+                        userData = snap.data();
+                        console.log("User Data Loaded:", userData);
+
+                        // Default Limit
+                        if (!userData.transactionLimit) userData.transactionLimit = 10000;
+                        document.getElementById('limit-display').innerText = `Limit: $${userData.transactionLimit.toLocaleString()}`;
+
+                        document.getElementById('display-name').textContent = userData.name;
+                        setupListeners(user.uid);
+                        renderCardOptions(); // Render Saved Cards
+
+                        overlay.classList.add('hidden');
+
+                        // ... (existing MFA Check) ...
+
+                        // MFA Check
+                        // MFA Check
+                        if (userData.mfaEnabled && !sessionStorage.getItem('mfaVerified')) {
+                            document.getElementById('mfa-verify-overlay').classList.remove('hidden');
+                        } else {
+                            dashboard.classList.remove('hidden');
+                        }
+                        // Always show Setup Button for prototype flexibility
+                        document.getElementById('setup-mfa-btn').classList.remove('hidden');
+                    } else {
+                        console.warn("User document does not exist!");
+                        // Cleanup listeners
+                        if (unsubBalance) unsubBalance();
+                        if (unsubTransactions) unsubTransactions();
+                        document.getElementById('display-balance').innerText = '$0.00';
+                        document.getElementById('liveFeed').innerHTML = '';
+                        userData = null; // Clear user data
+                        document.getElementById('login-mfa-input').value = ''; // Clear MFA Input
+
+                        overlay.classList.remove('hidden');
+                        dashboard.classList.add('hidden'); // Ensure hidden
+                        document.getElementById('mfa-verify-overlay').classList.add('hidden'); // Hide MFA on logout
+                    }
+                } else {
+                    console.log("No user in auth state.");
+                    // Cleanup listeners (duplicate logic for clarity/safety)
+                    if (unsubBalance) unsubBalance();
+                    if (unsubTransactions) unsubTransactions();
+                    userData = null;
+                    document.getElementById('login-mfa-input').value = ''; // Clear MFA Input
+                    overlay.classList.remove('hidden');
+                    dashboard.classList.add('hidden');
+                }
+            } catch (e) {
+                console.error("Auth Error:", e);
+                if (e && (e.message.includes("permission") || e.code === "permission-denied")) {
+                    alert("Database Access Denied: Please check your Firestore Security Rules in the Firebase Console.");
+                } else {
+                    alert("Authentication failed: " + (e ? e.message : "Unknown error"));
+                }
+                overlay.classList.remove('hidden');
+                dashboard.classList.add('hidden');
+            } finally {
+                spinner.classList.add('hidden');
+            }
+        });
+
+        loginForm.onsubmit = async (e) => {
+            e.preventDefault();
+            try { await signInWithEmailAndPassword(auth, document.getElementById('login-email').value, document.getElementById('login-password').value); }
+            catch (e) { alert("Login Failed: " + e.message); }
+        };
+
+        regForm.onsubmit = async (e) => {
+            e.preventDefault();
+            try {
+                const cred = await createUserWithEmailAndPassword(auth, document.getElementById('reg-email').value, document.getElementById('reg-pass').value);
+                await setDoc(doc(db, "users", cred.user.uid), {
+                    uid: cred.user.uid,
+                    name: document.getElementById('reg-name').value,
+                    email: document.getElementById('reg-email').value,
+                    balance: 10000.00,
+                    pin: document.getElementById('reg-pin').value,
+                    createdAt: serverTimestamp()
+                });
+            } catch (e) { alert("Registration Failed: " + e.message); }
+        };
+
+        document.getElementById('logout-btn').onclick = async () => {
+            document.getElementById('login-mfa-input').value = ''; // Force Clean
+            sessionStorage.removeItem('mfaVerified'); // Clear MFA persistence
+            await signOut(auth);
+        };
+
+        // --- Realtime Data ---
+        function setupListeners(uid) {
+            // Listen for balance
+            unsubBalance = onSnapshot(doc(db, "users", uid), (d) => {
+                userData = d.data();
+                if (userData) document.getElementById('display-balance').innerText = `$${userData.balance.toLocaleString()}`;
+            });
+
+            // Listen for transactions
+            const q = query(
+                collection(db, "transactions"),
+                where("participants", "array-contains", uid),
+                orderBy("timestamp", "desc"),
+                limit(20)
+            );
+            unsubTransactions = onSnapshot(q, (snap) => {
+                const feed = document.getElementById('liveFeed');
+                feed.innerHTML = '';
+                snap.forEach(d => {
+
+                    const t = d.data();
+                    const isFraud = t.prediction === "Fraudulent";
+                    const isTopUp = t.type === 'credit_card';
+
+                    // Determine if the current user is the sender or recipient for P2P
+                    const amISender = t.uid === uid;
+                    const isReceivedP2P = !amISender && t.type === 'p2p_transfer';
+
+                    let color, sign, partyText;
+
+                    if (isFraud) {
+                        color = 'border-red-500 bg-red-50';
+                        sign = '!';
+                        partyText = `To: ${t.party}`; // For fraud, show who it was intended for
+                    } else if (isReceivedP2P) {
+                        color = 'border-green-500 bg-green-50';
+                        sign = '+';
+                        partyText = `From: ${t.senderEmail || 'Unknown'}`;
+                    } else if (isTopUp) { // Credit Card Top Up (Self)
+                        color = 'border-blue-500 bg-blue-50';
+                        sign = '+';
+                        partyText = `Top-Up: ${t.party}`;
+                    } else { // Sent P2P
+                        color = 'border-gray-200'; // Default for sent
+                        sign = '-';
+                        partyText = `To: ${t.party}`;
+                    }
+
+                    const item = document.createElement('div');
+                    item.className = `feed-item p-4 border-l-4 ${color} rounded-r-lg bg-white shadow-sm mb-3`;
+                    item.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <span class="font-bold text-gray-700 text-sm uppercase">${t.type.replace('_', ' ')}</span>
+                                <span class="text-xs text-gray-500 block font-mono">${partyText}</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="font-bold text-lg ${isFraud ? 'text-red-600' : (isReceivedP2P || isTopUp ? 'text-green-600' : 'text-gray-800')}">${sign}$${t.amount.toLocaleString()}</span>
+                                <span class="text-[10px] ${isFraud ? 'text-red-600 font-bold' : 'text-green-600'} block">${t.prediction}</span>
+                            </div>
+                        </div>
+                        <div class="mt-2 pt-2 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
+                            <span>AI: ${t.model}</span>
+                            <span>Conf: ${(t.confidence * 100).toFixed(1)}%</span>
+                        </div>
+                    `;
+                    feed.appendChild(item);
+                });
+            });
+        }
+
+        // --- Transaction Logic (Global Scope for HTML onClick) ---
+        window.toggleInputs = function () {
+            const type = document.querySelector('input[name="txType"]:checked').value;
+            document.getElementById('bank-input-group').classList.toggle('hidden', type !== 'credit_card');
+            document.getElementById('recipient-input-group').classList.toggle('hidden', type !== 'p2p_transfer');
+        }
+
+        window.submitTransaction = async function () {
+            if (!auth.currentUser) return alertMessage("Please login first.", "bg-red-100 border-red-500 text-red-700");
+
+            const amt = parseFloat(document.getElementById('transactionAmount').value);
+            const pin = document.getElementById('userPIN').value;
+            const type = document.querySelector('input[name="txType"]:checked').value;
+
+            // REQ 1: Payment Method (Bank or Token)
+            const payMethodVal = document.getElementById('paymentMethod').value;
+            let recipient = "BANK";
+            let partyName = payMethodVal; // Default to value
+
+            if (type === 'credit_card') {
+                // Check if it is a Token
+                if (payMethodVal.startsWith('TOK_')) {
+                    // Lookup token in userData
+                    const card = userData.cards ? userData.cards.find(c => c.token === payMethodVal) : null;
+                    if (card) {
+                        partyName = `${card.brand} •••• ${card.last4} (Tokenized)`;
+                    } else {
+                        partyName = "Unknown Token";
+                    }
+                }
+                recipient = partyName;
+            } else {
+                recipient = document.getElementById('recipientID').value;
+            }
+
+            // Security Checks
+            // DEBUGGING: Check PIN values
+            console.log("Entered PIN:", pin);
+            console.log("Stored PIN:", userData ? userData.pin : "No User Data");
+
+            if (!userData) return alertMessage("User data not loaded. Please refresh.", "bg-red-100 border-red-500 text-red-700");
+
+            // Allow string/number comparison and trim whitespace
+            if (String(pin).trim() !== String(userData.pin).trim()) {
+                return alertMessage("Invalid PIN!", "bg-red-100 border-red-500 text-red-700");
+            }
+
+            // Limit Check
+            const currentLimit = userData.transactionLimit || 10000;
+            if (type === 'p2p_transfer' && amt > currentLimit) {
+                return alertMessage(`Amount exceeds your daily limit of $${currentLimit.toLocaleString()}`, "bg-red-100 border-red-500 text-red-700");
+            }
+            if (amt <= 0) return alertMessage("Invalid Amount", "bg-red-100 border-red-500 text-red-700");
+            if (type === 'p2p_transfer' && amt > userData.balance) return alertMessage("Insufficient Funds", "bg-red-100 border-red-500 text-red-700");
+
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true; btn.textContent = "Scanning...";
+
+            try {
+                // 1. AI Scan
+                // WE SEND 'recipient' and 'pin' SO THE WAF CAN SCAN THEM (Even if model ignores them)
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        amount: amt,
+                        transactionType: type,
+                        userID: auth.currentUser.uid,
+                        recipient: recipient, // For WAF XSS Check
+                        pin: pin             // For WAF Check
+                    })
+                });
+                const ai = await res.json();
+
+                // Check if WAF Blocked it (WAF returns 403)
+                if (res.status === 403) {
+                    alertMessage(ai.message, "bg-red-100 border-red-500 text-red-700");
+                    return;
+                }
+
+                // 2. Handle Result
+                if (ai.prediction === 'Fraudulent') {
+                    // Log failure
+                    await addDoc(collection(db, "transactions"), {
+                        uid: auth.currentUser.uid, amount: amt, type: type, prediction: "Fraudulent",
+                        confidence: ai.confidence, model: ai.model_used, timestamp: serverTimestamp(),
+                        participants: [auth.currentUser.uid], party: recipient, recipientId: (type === 'p2p_transfer' ? recipient : 'BANK')
+                    });
+                    alertMessage("BLOCKED: " + ai.model_used, "bg-red-100 border-red-500 text-red-700");
+                } else {
+                    // Process Success
+                    if (type === 'credit_card') { // Top Up
+                        await runTransaction(db, async (t) => {
+                            const ref = doc(db, "users", auth.currentUser.uid);
+                            const bal = (await t.get(ref)).data().balance;
+                            t.update(ref, { balance: bal + amt });
+                        });
+                        // Log Success for Top Up
+                        await addDoc(collection(db, "transactions"), {
+                            uid: auth.currentUser.uid,
+                            amount: amt,
+                            type: type,
+                            prediction: "Legitimate",
+                            confidence: ai.confidence,
+                            model: ai.model_used,
+                            timestamp: serverTimestamp(),
+                            participants: [auth.currentUser.uid],
+                            party: recipient,
+                            recipientId: 'BANK'
+                        });
+                    } else { // P2P
+                        const q = query(collection(db, "users"), where("email", "==", recipient));
+                        const snap = await getDocs(q);
+                        if (snap.empty) throw new Error("Recipient email not found");
+                        const rId = snap.docs[0].id;
+                        const rName = snap.docs[0].data().name;
+
+                        await runTransaction(db, async (t) => {
+                            const sRef = doc(db, "users", auth.currentUser.uid);
+                            const rRef = doc(db, "users", rId);
+
+                            // Reads FIRST
+                            const sDoc = await t.get(sRef);
+                            const rDoc = await t.get(rRef);
+
+                            // Writes SECOND
+                            t.update(sRef, { balance: sDoc.data().balance - amt });
+                            t.update(rRef, { balance: rDoc.data().balance + amt });
+                        });
+                        recipient = rName; // Update for log
+                        // Log Success for P2P
+                        await addDoc(collection(db, "transactions"), {
+                            uid: auth.currentUser.uid,
+                            amount: amt,
+                            type: type,
+                            prediction: "Legitimate",
+                            confidence: ai.confidence,
+                            model: ai.model_used,
+                            timestamp: serverTimestamp(),
+                            participants: [auth.currentUser.uid, rId],
+                            party: recipient,
+                            recipientId: rId,
+                            senderEmail: auth.currentUser.email
+                        });
+                    }
+                    alertMessage("Success!", "bg-green-100 border-green-500 text-green-700");
+                }
+            } catch (e) {
+                console.error("Transaction Error:", e);
+                if (e.message.includes("permission") || e.code === "permission-denied") {
+                    alertMessage("P2P Permission Error! Please set 'users' rule to 'if request.auth != null'", "bg-red-100 border-red-500 text-red-700");
+                } else {
+                    alertMessage(e.message, "bg-red-100 border-red-500 text-red-700");
+                }
+            } finally {
+                btn.disabled = false; btn.textContent = "Process Transaction";
+                document.getElementById('transactionAmount').value = '';
+                document.getElementById('userPIN').value = '';
+            }
+        };
+
+        function alertMessage(msg, classes) {
+            const box = document.getElementById('alertBox');
+            box.textContent = msg;
+            box.className = `p-3 mt-4 text-sm rounded-lg border opacity-100 ${classes}`;
+            setTimeout(() => box.classList.add('opacity-0'), 3000);
+        }
+
+        // --- MFA Functions ---
+        function generateBase32Secret() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+            let secret = '';
+            for (let i = 0; i < 16; i++) {
+                secret += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return secret;
+        }
+
+        let tempSecret = '';
+
+        window.openMFASetup = function () {
+            const modal = document.getElementById('mfa-modal');
+            const qrContainer = document.getElementById('qrcode');
+            const secretDisplay = document.getElementById('mfa-secret-display');
+
+            tempSecret = generateBase32Secret();
+            secretDisplay.textContent = "Secret: " + tempSecret;
+            qrContainer.innerHTML = "";
+
+            // Use OTPAuth
+            const totp = new OTPAuth.TOTP({
+                issuer: "FinSecure",
+                label: auth.currentUser.email,
+                algorithm: "SHA1",
+                digits: 6,
+                period: 30,
+                secret: OTPAuth.Secret.fromBase32(tempSecret)
+            });
+
+            new QRCode(qrContainer, {
+                text: totp.toString(),
+                width: 128,
+                height: 128
+            });
+
+            modal.classList.remove('hidden');
+        };
+
+        window.confirmMFA = async function () {
+            const code = document.getElementById('mfa-verify-input').value.trim();
+            if (!code) return alert("Please enter the code.");
+
+            const totp = new OTPAuth.TOTP({
+                algorithm: "SHA1",
+                digits: 6,
+                period: 30,
+                secret: OTPAuth.Secret.fromBase32(tempSecret)
+            });
+
+            if (totp.validate({ token: code, window: 1 }) !== null) {
+                try {
+                    await runTransaction(db, async (t) => {
+                        const ref = doc(db, "users", auth.currentUser.uid);
+                        t.update(ref, { mfaEnabled: true, mfaSecret: tempSecret });
+                    });
+
+                    if (userData) {
+                        userData.mfaEnabled = true;
+                        userData.mfaSecret = tempSecret;
+                    }
+
+                    alert("2FA Activated Successfully!");
+                    sessionStorage.setItem('mfaVerified', 'true'); // Persist verification
+                    document.getElementById('mfa-modal').classList.add('hidden');
+
+                    // Update Button State instead of Hiding
+                    const setupBtn = document.getElementById('setup-mfa-btn');
+                    setupBtn.textContent = "2FA Enabled ✅";
+                    setupBtn.classList.remove('text-indigo-500');
+                    setupBtn.classList.add('text-green-600', 'cursor-default');
+                    setupBtn.onclick = null; // Disable click
+                } catch (e) {
+                    console.error(e);
+                    alert("Error saving 2FA: " + e.message);
+                }
+            } else {
+                alert("Invalid Code. Please try again.");
+            }
+        };
+
+        window.verifyLoginMFA = function () {
+            const code = document.getElementById('login-mfa-input').value.trim();
+            if (!userData || !userData.mfaSecret) return;
+
+            const totp = new OTPAuth.TOTP({
+                algorithm: "SHA1",
+                digits: 6,
+                period: 30,
+                secret: OTPAuth.Secret.fromBase32(userData.mfaSecret)
+            });
+
+            if (totp.validate({ token: code, window: 1 }) !== null) {
+                sessionStorage.setItem('mfaVerified', 'true'); // Persist verification
+                document.getElementById('mfa-verify-overlay').classList.add('hidden');
+                document.getElementById('dashboard-container').classList.remove('hidden');
+            } else {
+                alert("Invalid 2FA Code.");
+            }
+        };
+
+        // Event Assignments
+        document.getElementById('setup-mfa-btn').onclick = openMFASetup;
+        document.getElementById('cancel-mfa-btn').onclick = () => document.getElementById('mfa-modal').classList.add('hidden');
+        document.getElementById('confirm-mfa-btn').onclick = confirmMFA;
+        document.getElementById('login-verify-btn').onclick = verifyLoginMFA;
+        document.getElementById('back-to-login-btn').onclick = async () => {
+            try {
+                // Immediate UI feedback
+                document.getElementById('login-mfa-input').value = ''; // Force Clean
+                document.getElementById('mfa-verify-overlay').classList.add('hidden');
+                document.getElementById('auth-overlay').classList.remove('hidden');
+                document.getElementById('dashboard-container').classList.add('hidden');
+
+                sessionStorage.removeItem('mfaVerified'); // Clear persistence
+                await signOut(auth);
+            } catch (e) {
+                console.error("Sign out error:", e);
+                alert("Error signing out: " + e.message);
+                // Revert UI if failed (optional, but safer to just let them try again or reload)
+                window.location.reload();
+            }
+        };
+
+        // --- Tokenization Functions ---
+        window.openAddCardModal = function () {
+            document.getElementById('add-card-modal').classList.remove('hidden');
+        };
+
+        window.saveCard = async function () {
+            const num = document.getElementById('card-number').value.replace(/\s/g, '');
+            const exp = document.getElementById('card-expiry').value;
+
+            if (num.length < 13 || !exp) return alert("Invalid Card Details");
+
+            // Simulate Token Generation
+            const token = "TOK_" + Math.random().toString(36).substr(2, 9).toUpperCase();
+            const last4 = num.slice(-4);
+            const cardBrand = num.startsWith('4') ? 'Visa' : (num.startsWith('5') ? 'MasterCard' : 'Card');
+
+            const newCard = {
+                token: token,
+                last4: last4,
+                brand: cardBrand,
+                expiry: exp
+            };
+
+            try {
+                // Save to Firestore User Profile
+                const userRef = doc(db, "users", auth.currentUser.uid);
+                await runTransaction(db, async (t) => {
+                    const docSnap = await t.get(userRef);
+                    const data = docSnap.data();
+                    let cards = data.cards || [];
+                    cards.push(newCard);
+                    t.update(userRef, { cards: cards });
+                });
+
+                alert("Card Tokenized & Saved Securely!\nToken: " + token);
+                document.getElementById('add-card-modal').classList.add('hidden');
+
+                // Refresh list
+                renderCardOptions();
+
+            } catch (e) {
+                console.error(e);
+                alert("Error saving card: " + e.message);
+            }
+        };
+
+        // --- Transaction Limit Logic ---
+        window.openLimitModal = function () {
+            document.getElementById('limit-modal').classList.remove('hidden');
+            document.getElementById('new-limit').value = userData.transactionLimit || 10000;
+        };
+
+        window.saveLimit = async function () {
+            const val = parseFloat(document.getElementById('new-limit').value);
+            const pin = document.getElementById('limit-pin').value;
+
+            if (!val || val <= 0) return alert("Invalid Limit Amount");
+            if (!pin) return alert("Please enter your PIN");
+
+            // Verify PIN
+            if (String(pin).trim() !== String(userData.pin).trim()) {
+                return alert("Invalid PIN. Access Denied.");
+            }
+
+            try {
+                const userRef = doc(db, "users", auth.currentUser.uid);
+                await updateDoc(userRef, { transactionLimit: val });
+                userData.transactionLimit = val; // Local Update
+                document.getElementById('limit-display').innerText = `Limit: $${val.toLocaleString()}`;
+                document.getElementById('limit-modal').classList.add('hidden');
+                document.getElementById('limit-pin').value = ''; // Clear PIN
+                alert("Transaction Limit Updated!");
+            } catch (e) {
+                if (e.code === 'permission-denied') return alert("Permission Error: Check Firestore Rules");
+                alert("Error updating limit: " + e.message);
+            }
+        };
+
+        window.renderCardOptions = function () {
+            const group = document.getElementById('saved-cards-optgroup');
+            group.innerHTML = ""; // Clear
+
+            if (userData && userData.cards && userData.cards.length > 0) {
+                userData.cards.forEach(card => {
+                    const option = document.createElement('option');
+                    option.value = card.token; // The value is the TOKEN
+                    option.text = `${card.brand} •••• ${card.last4} (Tokenized)`;
+                    group.appendChild(option);
+                });
+            } else {
+                const option = document.createElement('option');
+                option.text = "No saved cards";
+                option.disabled = true;
+                group.appendChild(option);
+            }
+        };
+
+        // Assign New Events
+        document.getElementById('manage-cards-btn').onclick = openAddCardModal;
+        document.getElementById('cancel-card-btn').onclick = () => document.getElementById('add-card-modal').classList.add('hidden');
+        document.getElementById('save-card-btn').onclick = saveCard;
+
+    </script>
+</body>
+
+</html>
