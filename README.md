@@ -30,7 +30,7 @@ The system was built using an Agile methodology and operates on a strict 3-tier 
 
 
 ### 1. Real-Time Fraud Interception
-![Fraud Alert](fraud-alert.png)
+![Fraud Alert](https://github.com/Julio0702/fin-secure-access-showcase/blob/5e56257273ea81539b8896db700c4e58a2ab73fe/fraud%20alert.png)
 *The AI engine successfully identifies a high-value anomaly and triggers an immediate block, providing Explainable AI (XAI) feedback to the user.*
 
 ### 2. Secure User Dashboard
