@@ -38,8 +38,9 @@ The system was built using an Agile methodology and operates on a strict 3-tier 
 *The main interface featuring a live activity feed and user-defined risk controls (Daily Transfer Limits).*
 
 ### 3. Multi-Factor Authentication
-![MFA Login](https://github.com/Julio0702/fin-secure-access-showcase/blob/17345b8176b8c906e03060b8ff5513473cc5d6b0/Setup-2FA.png)
-(https://github.com/Julio0702/fin-secure-access-showcase/blob/17345b8176b8c906e03060b8ff5513473cc5d6b0/2FA.png)
+![MFA Setup](https://github.com/Julio0702/fin-secure-access-showcase/blob/17345b8176b8c906e03060b8ff5513473cc5d6b0/Setup-2FA.png)
+
+![MFA Login](https://github.com/Julio0702/fin-secure-access-showcase/blob/17345b8176b8c906e03060b8ff5513473cc5d6b0/2FA.png)
 *Secure login portal enforcing strict access control via TOTP.*
 
 ### 4. Web Application Firewall (WAF) Interception
