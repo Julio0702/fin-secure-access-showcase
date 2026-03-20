@@ -24,7 +24,7 @@ A technical showcase of an AI-driven web banking security prototype.
 ## ⚙️ System Architecture (Three-Tier)
 The system was built using an Agile methodology and operates on a strict 3-tier architecture to ensure separation of concerns and maximum security.
 
-![System Architecture](architecture-diagram.png) 
+![System Architecture](https://github.com/Julio0702/fin-secure-access-showcase/blob/e87de52b812144f6449c4536b74219c981be6132/image.png) 
 
 ## 📸 System Previews
 
